@@ -1,0 +1,86 @@
+version: '3.9'
+
+services:
+  ghost:
+    image: ghost:alpine
+    restart: always
+    pull_policy: always
+    hostname: ${HOSTNAME}
+    environment:
+      NODE_ENV: production
+      process: 'systemd'
+      server__port: '2368'
+      server__host: '0.0.0.0'
+      url: ${WEB_URL}
+      admin__url: ${ADMIN_URL}
+      paths__contentPath: '/var/lib/ghost/content'
+      privacy__useUpdateCheck: true
+      privacy__useGravatar: true
+      privacy__useRpcPing: true
+      privacy__useStructuredData: true
+      database__client: 'sqlite3'
+      database__connection__filename: 'content/data/ghost.db'
+      database__useNullAsDefault: true
+      database__debug: false
+      mail__transport: 'SMTP'
+      mail__logger: true
+      mail__from: ${MAIL_FROM}
+      mail__options__host: ${MAIL_HOST}
+      mail__options__port: ${MAIL_PORT}
+      mail__options__secureConnection: false
+      mail__options__auth__user: ${MAIL_USERNAME}
+      mail__options__auth__pass: ${MAIL_PASSWORD}
+      adapters__cache__Redis__host: 'redis'
+      adapters__cache__Redis__port: '6379'
+      adapters__cache__Redis__password: ${REDIS_PASSWORD}
+      adapters__cache__imageSizes__adapter: 'Redis'
+      adapters__cache__imageSizes__ttl: '3600'
+      adapters__cache__imageSizes__keyPrefix: 'image-sizes:'
+      adapters__tenor__googleApiKey: ${TENOR_API_KEY}
+    volumes:
+      - ${VOLUME_DIR}/content:/var/lib/ghost/content
+    depends_on:
+      redis:
+        condition: service_healthy
+    links:
+      - redis:redis
+    expose:
+      - 2368
+    networks:
+      - default
+      - nginx
+    deploy:
+      resources:
+        limits:
+          cpus: ${LIMIT_CPU:-1}
+          memory: ${LIMIT_RAM:-256M}
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+  redis:
+    image: redis:7-alpine
+    restart: always
+    expose:
+      - 6379
+    networks:
+      - default
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ${VOLUME_DIR}/cache:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 16M
+
+networks:
+  default:
+  nginx:
+    external: true
+    name: nginx

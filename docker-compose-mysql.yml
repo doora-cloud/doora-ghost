@@ -1,0 +1,116 @@
+version: '3.9'
+
+services:
+  ghost:
+    image: registry.gitlab.com/doora-121299/doora-blog
+    restart: always
+    pull_policy: always
+    hostname: doora-blog-prod
+    environment:
+      NODE_ENV: production
+      process: 'systemd'
+      server__port: '2368'
+      server__host: '0.0.0.0'
+      paths__contentPath: '/var/lib/ghost/content'
+      privacy__useUpdateCheck: true
+      privacy__useGravatar: true
+      privacy__useRpcPing: true
+      privacy__useStructuredData: true
+      url: ${WEB_URL}
+      database__client: 'mysql'
+      database__connection__host: 'mysql'
+      database__connection__port: '3306'
+      database__connection__user: ${MYSQL_USER}
+      database__connection__password: ${MYSQL_PASSWORD}
+      database__connection__database: ${MYSQL_DATABASE}
+      database__connection__charset: 'utf8mb4'
+      mail__transport: 'SMTP'
+      mail__logger: true
+      mail__from: ${MAIL_FROM}
+      mail__options__host: ${MAIL_HOST}
+      mail__options__port: ${MAIL_PORT}
+      mail__options__secureConnection: false
+      mail__options__auth__user: ${MAIL_USERNAME}
+      mail__options__auth__pass: ${MAIL_PASSWORD}
+      adapters__cache__custom-redis-cache-adapter__host: 'redis'
+      adapters__cache__custom-redis-cache-adapter__port: '6379'
+      adapters__cache__custom-redis-cache-adapter__password: ${REDIS_PASSWORD}
+      storage__active: 'digitalocean'
+      storage__digitalocean__accessKeyId: ${SPACES_ACCESS_KEY}
+      storage__digitalocean__secretAccessKey: ${SPACES_SECRET_KEY}
+      storage__digitalocean__region: ${SPACES_REGION}
+      storage__digitalocean__bucket: ${SPACES_BUCKET}
+      storage__digitalocean__endpoint: https://${SPACES_REGION}.digitaloceanspaces.com
+      storage__digitalocean__assetHost: https://${SPACES_BUCKET}.${SPACES_REGION}.cdn.digitaloceanspaces.com
+      storage__digitalocean__pathPrefix: ${SPACES_PATH_PREFIX}
+      storage__digitalocean__forcePathStyle: false
+      storage__digitalocean__acl: 'public-read'
+    volumes:
+      - ${VOLUME_DIR}/content:/var/lib/ghost/content
+    expose:
+      - 2368
+    networks:
+      - internal-svc
+      - nginx
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    links:
+      - redis:redis
+      - mysql:mysql
+  mysql:
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ${VOLUME_DIR}/mysql:/var/lib/mysql
+    expose:
+      - 3306
+    networks:
+      - internal-svc
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 64M
+  redis:
+    image: redis:7-alpine
+    restart: always
+    expose:
+      - 6379
+    networks:
+      - internal-svc
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ${VOLUME_DIR}/cache:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 64M
+
+networks:
+    default:
+    internal-svc:
+    nginx:
+        external: true
+        name: nginx
