@@ -4,6 +4,7 @@ services:
   ghost:
     image: ghost:alpine
     restart: always
+    pull_policy: always
     environment:
       NODE_ENV: production
       process: "systemd"
@@ -11,16 +12,15 @@ services:
       server__host: "0.0.0.0"
       url: ${WEB_URL}
       admin__url: ${ADMIN_URL}
-      database__client: mysql
-      database__connection__host: db
-      database__connection__port: 3306
-      database__connection__user: ${MYSQL_USER}
-      database__connection__password: ${MYSQL_PASSWORD}
-      database__connection__database: ${MYSQL_DATABASE}
+      paths__contentPath: "/var/lib/ghost/content"
       privacy__useUpdateCheck: true
       privacy__useGravatar: true
       privacy__useRpcPing: true
       privacy__useStructuredData: true
+      database__client: "sqlite3"
+      database__connection__filename: "content/data/ghost.db"
+      database__useNullAsDefault: true
+      database__debug: false
       mail__transport: "SMTP"
       mail__logger: true
       mail__from: ${MAIL_FROM}
@@ -36,66 +36,33 @@ services:
       adapters__cache__imageSizes__ttl: "3600"
       adapters__cache__imageSizes__keyPrefix: "image-sizes:"
       adapters__tenor__googleApiKey: ${TENOR_API_KEY}
-      paths__contentPath: "/var/lib/ghost/content"
     volumes:
       - ${VOLUME_DIR}/content:/var/lib/ghost/content
     depends_on:
       redis:
         condition: service_healthy
-      db:
-        condition: service_healthy
     links:
       - redis:redis
-      - db:db
     expose:
       - 2368
     networks:
-      - internal
+      - default
       - nginx
     deploy:
       resources:
         limits:
-          cpus: ${LIMIT_GHOST_CPU:-1}
-          memory: ${LIMIT_GHOST_RAM:-256M}
+          cpus: ${LIMIT_CPU:-1}
+          memory: ${LIMIT_RAM:-256M}
         reservations:
           cpus: "0.5"
           memory: 128M
-  db:
-    image: mariadb:11
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    volumes:
-      - ${VOLUME_DIR}/db:/var/lib/mysql
-    expose:
-      - 3306
-    networks:
-      - internal
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      start_period: 1m
-      start_interval: 10s
-      interval: 1m
-      timeout: 5s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: ${LIMIT_DB_CPU:-1}
-          memory: ${LIMIT_DB_RAM:-1G}
-        reservations:
-          cpus: "0.1"
-          memory: 16M
   redis:
     image: redis:7-alpine
     restart: always
     expose:
       - 6379
     networks:
-      - internal
+      - default
     command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
     volumes:
       - ${VOLUME_DIR}/cache:/data
@@ -105,14 +72,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: ${LIMIT_REDIS_CPU:-1}
-          memory: ${LIMIT_REDIS_RAM:-1G}
+          cpus: "1"
+          memory: 512M
         reservations:
-          cpus: "0.1"
+          cpus: "0.2"
           memory: 16M
 
 networks:
-  internal:
+  default:
   nginx:
     external: true
     name: nginx
