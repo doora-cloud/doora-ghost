@@ -38,15 +38,12 @@ services:
       adapters__tenor__googleApiKey: ${TENOR_API_KEY}
       paths__contentPath: "/var/lib/ghost/content"
     volumes:
-      - ${VOLUME_DIR}/content:/var/lib/ghost/content
+      - ${BASE_VOLUME}/content:/var/lib/ghost/content
     depends_on:
       redis:
         condition: service_healthy
       db:
         condition: service_healthy
-    links:
-      - redis:redis
-      - db:db
     expose:
       - 2368
     networks:
@@ -69,7 +66,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      - ${VOLUME_DIR}/db:/var/lib/mysql
+      - ${BASE_VOLUME}/db:/var/lib/mysql
     expose:
       - 3306
     networks:
@@ -98,7 +95,7 @@ services:
       - internal
     command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
     volumes:
-      - ${VOLUME_DIR}/cache:/data
+      - ${BASE_VOLUME}/cache:/data
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       retries: 3
@@ -115,4 +112,3 @@ networks:
   internal:
   nginx:
     external: true
-    name: nginx
