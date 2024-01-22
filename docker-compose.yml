@@ -1,7 +1,7 @@
 version: "3.9"
 
 services:
-  ghost:
+  app:
     image: ghost:alpine
     restart: always
     environment:
